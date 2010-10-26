@@ -44,6 +44,7 @@ python << end
 
 import vim
 import compiler
+import tempfile
 try:
     from pyflakes.checker import Checker
 except:  # pyflakes version <= 0.2.1
@@ -95,20 +96,25 @@ class PySyntaxChecker(object):
     def check(self, filename=None):
         if not filename:
             filename = vim.eval("expand('%:p')")
-        source = open(filename, 'r').read()
-        print >> open('/tmp/vim.log', 'a'), filename, source
-        msgs = []
-        try:
-            tree = compiler.parse(source)
-        except (SyntaxError, IndentationError), e:
-            msgs.append((filename, e.lineno, e.args[0], 'E'))
-        except Exception, e:
-            msgs.append((filename, 1, e.args[0], 'E'))
-        else:
-            w = Checker(tree, filename)
-            w.messages.sort(lambda a, b: cmp(a.lineno, b.lineno))
-            for msg in w.messages:
-                msgs.append((filename, msg.lineno, msg.message % msg.message_args, 'W'))
+        msgs = []                 
+        source = ""
+        with open(filename, 'r') as f:
+            source = f.read()
+
+        with tempfile.TemporaryFile() as tmp:
+            tmp.write(filename)
+            tmp.write(source)
+            try:
+                tree = compiler.parse(source)
+            except (SyntaxError, IndentationError), e:
+                msgs.append((filename, e.lineno, e.args[0], 'E'))
+            except Exception, e:
+                msgs.append((filename, 1, e.args[0], 'E'))
+            else:
+                w = Checker(tree, filename)
+                w.messages.sort(lambda a, b: cmp(a.lineno, b.lineno))
+                for msg in w.messages:
+                    msgs.append((filename, msg.lineno, msg.message % msg.message_args, 'W'))
 
         quickfix.make(sorted(msgs))
 
